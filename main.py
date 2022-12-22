@@ -12,6 +12,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Updater)
 
+CACHED_EVENT_TYPES = []
+CACHED_EVENTS = {}
+
 locale.setlocale(locale.LC_ALL, os.getenv('LOCALE'))
 
 
@@ -40,17 +43,17 @@ def start(update: Update, _: CallbackContext):
         keyboard_buttons.append(InlineKeyboardButton(
             text=f"🗓️{date.strftime(day_date_format)}", callback_data=json.dumps({'date': repr(date)})))
 
-    update.effective_message.reply_html(get_phrase['SELECT_SCHEDULE_DATE'].replace("{0}", time.strftime(date_format)),
+    update.effective_message.reply_html(get_phrase('SELECT_SCHEDULE_DATE').replace("{0}", time.strftime(date_format)),
                                         reply_markup=InlineKeyboardMarkup.from_column(keyboard_buttons))
 
-
-EVENT_TYPES = []
+    logger.log(
+        msg=f'[{get_formatted_user(update)}] started bot', level=logging.INFO)
 
 
 def get_event_types_json():
-    global EVENT_TYPES
+    global CACHED_EVENT_TYPES
 
-    if not EVENT_TYPES:
+    if not CACHED_EVENT_TYPES:
         response = requests.get(os.getenv('EVENT_TYPES_URL'), headers={
             'User-Agent': os.getenv('USER_AGENT_HEADER_VALUE'),
             'Authorization': os.getenv('AUTHORIZATION_HEADER_VALUE'),
@@ -61,9 +64,9 @@ def get_event_types_json():
 
         json = response.json()
 
-        EVENT_TYPES = json['_embedded']['event-types']
+        CACHED_EVENT_TYPES = json['_embedded']['event-types']
 
-    return EVENT_TYPES
+    return CACHED_EVENT_TYPES
 
 
 def get_events_json(date):
@@ -171,8 +174,16 @@ def get_lecturer(event_id, events):
     return person
 
 
-def handle_callback_query(update: Update, context: CallbackContext):
+def get_formatted_user(update: Update):
+    user_id = update.effective_user.id
+    full_name = update.effective_user.full_name
+
+    return f'{user_id} :: {full_name}'
+
+
+def handle_callback_query(update: Update, _: CallbackContext):
     global logger
+    global CACHED_EVENTS
 
     action = update.callback_query.data
 
@@ -183,44 +194,45 @@ def handle_callback_query(update: Update, context: CallbackContext):
     after_week = date + datetime.timedelta(days=7)
     day = date.day
 
-    events = get_events_json(date=date)
+    formatted_user = get_formatted_user(update)
 
     try:
-        formatted_schedule = get_formatted_events_text(
-            events=events['events'], day=day, all_events=events)
+        if not CACHED_EVENTS.get(repr(date), None):
+            events = get_events_json(date=date)
+            formatted_schedule = get_formatted_events_text(
+                events=events['events'], day=day, all_events=events)
 
-        update.effective_message.reply_html(text=formatted_schedule, reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(text=f'⬅ {yesterday.strftime("%d.%m %A")}', callback_data=json.dumps(
-                    {'type': 'yesterday', 'date': repr(yesterday)})),
-                InlineKeyboardButton(text=f'➡️ {tomorrow.strftime("%d.%m %A")}', callback_data=json.dumps(
-                    {'type': 'tomorrow', 'date': repr(tomorrow)})),
-            ],
-            [
-                InlineKeyboardButton(text=f'⏪ {week_ago.strftime("%d.%m %A")}', callback_data=json.dumps(
-                    {'type': 'week_ago', 'date': repr(week_ago)})),
-                InlineKeyboardButton(text=f'⏩ {after_week.strftime("%d.%m %A")}', callback_data=json.dumps(
-                    {'type': 'after_week', 'date': repr(after_week)}))
-            ]
-        ]))
+            CACHED_EVENTS[repr(date)] = formatted_schedule
+
+            logger.log(
+                msg=f'[{formatted_user}] created cache for {repr(date)}', level=logging.INFO)
+        else:
+            logger.log(
+                msg=f'[{formatted_user}] already cached for {repr(date)}', level=logging.INFO)
     except:
         traceback.print_exc()
-        update.effective_message.reply_html(text=get_phrase('EVENTS_NOT_FOUND'), reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(text=f'⬅ {yesterday.strftime("%d.%m %A")}', callback_data=json.dumps(
-                    {'type': 'yesterday', 'date': repr(yesterday)})),
-                InlineKeyboardButton(text=f'➡️ {tomorrow.strftime("%d.%m %A")}', callback_data=json.dumps(
-                    {'type': 'tomorrow', 'date': repr(tomorrow)})),
-            ],
-            [
-                InlineKeyboardButton(text=f'⏪ {week_ago.strftime("%d.%m %A")}', callback_data=json.dumps(
-                    {'type': 'week_ago', 'date': repr(week_ago)})),
-                InlineKeyboardButton(text=f'⏩ {after_week.strftime("%d.%m %A")}', callback_data=json.dumps(
-                    {'type': 'after_week', 'date': repr(after_week)}))
-            ]
-        ]))
 
-    logger.log(level=1, msg='action')
+        if not CACHED_EVENTS.get(repr(date), None):
+            CACHED_EVENTS[repr(date)] = get_phrase('EVENTS_NOT_FOUND')
+
+            logger.log(
+                msg=f'[{formatted_user}] created 404 cache for {repr(date)}', level=logging.INFO)
+
+    update.effective_message.reply_html(text=CACHED_EVENTS[repr(date)], reply_markup=InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(text=f'⬅ {yesterday.strftime("%d.%m %A")}', callback_data=json.dumps(
+                {'type': 'yesterday', 'date': repr(yesterday)})),
+            InlineKeyboardButton(text=f'➡️ {tomorrow.strftime("%d.%m %A")}', callback_data=json.dumps(
+                {'type': 'tomorrow', 'date': repr(tomorrow)})),
+        ],
+        [
+            InlineKeyboardButton(text=f'⏪ {week_ago.strftime("%d.%m %A")}', callback_data=json.dumps(
+                {'type': 'week_ago', 'date': repr(week_ago)})),
+            InlineKeyboardButton(text=f'⏩ {after_week.strftime("%d.%m %A")}', callback_data=json.dumps(
+                {'type': 'after_week', 'date': repr(after_week)}))
+        ]
+    ]))
+    logger.log(msg=f'[{formatted_user}] {action}', level=logging.INFO)
 
 
 def main():

@@ -15,10 +15,12 @@ from telegram.ext import (CallbackContext, CallbackQueryHandler,
 CACHED_EVENT_TYPES = []
 CACHED_EVENTS = {}
 
+load_dotenv()
+
+print(os.getenv('LOCALE'))
+
 locale.setlocale(locale.LC_ALL, os.getenv('LOCALE'))
 
-
-load_dotenv()
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO

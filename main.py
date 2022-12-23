@@ -222,15 +222,15 @@ def handle_callback_query(update: Update, _: CallbackContext):
 
     update.effective_message.reply_html(text=CACHED_EVENTS[repr(date)], reply_markup=InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(text=f'⬅ {yesterday.strftime("%d.%m %A")}', callback_data=json.dumps(
+            InlineKeyboardButton(text=f'⬅ {yesterday.strftime("%d.%m %a")}', callback_data=json.dumps(
                 {'type': 'yesterday', 'date': repr(yesterday)})),
-            InlineKeyboardButton(text=f'➡️ {tomorrow.strftime("%d.%m %A")}', callback_data=json.dumps(
+            InlineKeyboardButton(text=f'➡️ {tomorrow.strftime("%d.%m %a")}', callback_data=json.dumps(
                 {'type': 'tomorrow', 'date': repr(tomorrow)})),
         ],
         [
-            InlineKeyboardButton(text=f'⏪ {week_ago.strftime("%d.%m %A")}', callback_data=json.dumps(
+            InlineKeyboardButton(text=f'⏪ {week_ago.strftime("%d.%m %a")}', callback_data=json.dumps(
                 {'type': 'week_ago', 'date': repr(week_ago)})),
-            InlineKeyboardButton(text=f'⏩ {after_week.strftime("%d.%m %A")}', callback_data=json.dumps(
+            InlineKeyboardButton(text=f'⏩ {after_week.strftime("%d.%m %a")}', callback_data=json.dumps(
                 {'type': 'after_week', 'date': repr(after_week)}))
         ]
     ]))
